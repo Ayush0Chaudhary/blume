@@ -247,10 +247,12 @@ def main():
     
     print(max_dist_cap)
     # Add Distance constraint.
+
+    # FIXME: Currently ignoring electric vehicle limits
     routing.AddDimension(
         transit_callback_index,
         0,  # no slack
-        max_dist_cap,  # vehicle maximum travel distance
+        300,  # vehicle maximum travel distance
         True,  # start cumul to zero
         "Distance"
     )
@@ -260,6 +262,44 @@ def main():
     # TODO: On verge, copilot suggested that it is for distance/fixed_cost 
     # https://developers.google.com/optimization/reference/python/constraint_solver/pywrapcp#setglobalspancostcoefficient
     distance_dimension.SetGlobalSpanCostCoefficient(100)
+
+    time = "Time"
+    # adding time dimension to make time window conatraint
+    routing.AddDimension(
+        transit_callback_index,
+        30,  # allow waiting time
+        30,  # maximum time per vehicle
+        False,  # Don't force start cumul to zero. This doesn't have any effect in this example,
+        # since the depot has a start window of (0, 0).
+        time
+    )
+
+    time_dimension = routing.GetDimensionOrDie(time)
+
+# FIXME: I am assuming that we know about tomorrow's time windows
+
+    # Add time window constraints for each location except depot.
+    '''Another assumption is that if shop have demand in the future, we will send delivery to them in early part of the day'''
+    
+
+    for demand in data["demands"]:
+
+    # data["depots"] = [
+    #     [4,5,6,7,8,9,10],
+    #     [11,12,13,14,15,16,17,18,19,20],
+    #     [21,22,23,24,25]
+    # ]
+    # ('Demand40', 16,  6711, 565, '10:00', '12:00', '12:00', '19:00'),
+        # TODO: To be changed for loop
+        if demand[1] in data["depots"][0]:
+            depot_index = manager.NodeToIndex(0)
+            store_index = manager.NodeToIndex(data["depots"].index(demand[1])+1)
+            depot_start = convert_time_to_numeric(demand[4])
+            depot_end = convert_time_to_numeric(demand[5])
+            store_start = convert_time_to_numeric(demand[6])
+            store_end = convert_time_to_numeric(demand[7])
+            time_dimension.CumulVar(depot_index).SetRange(depot_start, depot_end)
+            time_dimension.CumulVar(store_index).SetRange(store_start, store_end)
 
 
 
