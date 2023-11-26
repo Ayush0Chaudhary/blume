@@ -51,7 +51,7 @@ def create_data_model():
 def print_solution(data, manager, routing, solution):
     """Prints solution on console."""
     print(f"Objective: {solution.ObjectiveValue()}")
-    time_dimens-*Aion = routing.GetDimensionOrDie("Time")
+    time_dimension = routing.GetDimensionOrDie("Time")
     total_time = 0
     for vehicle_id in range(data["num_vehicles"]):
         index = routing.Start(vehicle_id)
@@ -125,7 +125,7 @@ def main():
     solution = routing.SolveWithParameters(search_parameters)
 
     if solution:
-        print_solution(data, manager, routing, solution)    
+        print_solution(data, manager, routing, solution)
     else :
         print("No solution found !")
 
