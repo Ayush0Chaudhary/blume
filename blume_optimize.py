@@ -4,7 +4,9 @@ from ortools.constraint_solver import pywrapcp
 
 def create_data_model():
     data = {}
-    data["time_matrix"] = [
+    data["no_of_depot"] = 3
+    data["no_of_store"] = 22
+    data["distance_matrix"] = [
                             # fmt: off
                             [0, 500, 500, 180, 130, 240, 210, 220, 170, 180, 700, 720, 750, 320, 340, 750, 740, 600, 650, 650, 500, 540, 560, 580, 600],
                             [500, 0, 500, 600, 650, 700, 620, 630, 640, 650, 220, 250, 260, 270, 230, 240, 250, 260, 250, 235, 500, 510, 520, 530, 540],
@@ -34,7 +36,9 @@ def create_data_model():
                             # fmt: on
     ]
 
-    data["depot_store_edges"] = [
+
+
+    datas = [
         [1, 4],
         [1, 5],
         [1, 6],
@@ -52,12 +56,47 @@ def create_data_model():
         [2, 18],
         [2, 19],
         [2, 20],
-        [2, 21],
-        [2, 22],
-        [2, 23],
-        [2, 24],
-        [2, 25],
+        [3, 21],
+        [3, 22],
+        [3, 23],
+        [3, 24],
+        [3, 25],
     ]
+
+
+
+    
+    mp_store_to_depot = {}
+    mp_depot_to_store = {}
+
+    data["depots"] = [
+        [4,5,6,7,8,9,10],
+        [11,12,13,14,15,16,17,18,19,20],
+        [21,22,23,24,25]
+    ]
+    for i in range(data["no_of_depot"]):
+        for j in range(len(data["depots"][i])):
+            data["depots"][i][j] = data["depots"][i][j] - 1
+
+    # print(data["depots"])
+    data["depots_dist_matrix"] = []
+
+    for i in range(data["no_of_depot"]):
+        data["depots"][i].insert(0,i)
+        rows = []
+        for ii in range(len(data["depots"][i])):
+            row = []
+            for jj in range(len(data["depots"][i])):
+                row.append(data["distance_matrix"][data["depots"][i][ii]][data["depots"][i][jj]])
+            rows.append(row)
+        data["depots_dist_matrix"].append(rows)
+    
+    for i in range(len(datas)):
+        mp_store_to_depot[datas[i][1]] = datas[i][0]
+        mp_depot_to_store[datas[i][0]] = datas[i][1]
+
+    data["pickups_deliveries_dts"] = mp_store_to_depot
+    data["pickups_deliveries_std"] = mp_depot_to_store
 
     data["vehicles_num"] = [
         [5, 1],
@@ -66,11 +105,13 @@ def create_data_model():
     ]
 
     data["vehicle_specs"] = [
+        # wgt   vol fixedCost   varCost   maxDist   speed
         [61200, 2389, 1000, 100, 10000000, 40],
         [61200, 2389, 2000, 60, 120, 45]
     ]
 
     data["demands"] = [
+        ('Demand1',  4,  5497, 322, '10:00', '12:00', '15:00', '19:00'),
         ('Demand2',  5,  6072, 460, '10:00', '12:00', '16:00', '19:00'),
         ('Demand3',  6, 11362, 345, '10:00', '12:00', '17:00', '19:00'),
         ('Demand4',  7,  9568, 552, '10:00', '12:00', '12:00', '19:00'),
@@ -120,6 +161,111 @@ def create_data_model():
         ('Demand48', 23,  6711, 573, '10:00', '12:00', '12:00', '19:00'),
         ('Demand49', 22,  6711, 574, '10:00', '12:00', '12:00', '19:00'),
         ('Demand50', 21,  6711, 575, '10:00', '12:00', '12:00', '19:00')]
+    
+    return data
+
+def convert_time_to_numeric(time_str):
+    # Convert 'HH:MM' format to numeric value
+    hours, minutes = map(int, time_str.split(':'))
+    return hours + minutes / 60
+
+# data[vehicle_num] 
+# conv    electric
 
 
-create_data_model()
+def main():
+    data = create_data_model()
+    # print(data["depots_dist_matrix"])
+    # print(data["distance_matrix"])
+    # this is the manager for the depot distance matrix. 
+    manager = pywrapcp.RoutingIndexManager(
+        # Total depot+store,                total vehicle,                                   depot node
+        len(data["depots_dist_matrix"][0]), data["vehicles_num"][0][0] + data["vehicles_num"][0][1], 0
+    )
+
+    routing = pywrapcp.RoutingModel(manager)
+
+        # Define cost of each arc.
+    def distance_callback(from_index, to_index):
+        """Returns the manhattan distance between the two nodes."""
+        # Convert from routing variable Index to distance matrix NodeIndex.
+        from_node = manager.IndexToNode(from_index)
+        to_node = manager.IndexToNode(to_index)
+        return data["distance_matrix"][from_node][to_node]
+    
+    # TODO: To be change
+    def cost_function(vehicle, distance):
+        if vehicle in [0,1,2,3,4]:  # Vehicle 1 with $100 for 1 km
+            return distance * data["vehicle_specs"][0][3]
+        elif vehicle == 5:  # Vehicle 2 with $60 for 1 km
+            return distance * data['vehicle_specs'][1][3]
+
+# FIXME: Not sure about this, change in future to setting cost evaluator of individual vehicle
+#####################################################
+    # registring the callback
+    transit_callback_index = routing.RegisterTransitCallback(distance_callback)
+    # TODO: To be changed
+    cost_callback = lambda from_index, to_index: cost_function(manager.vehicle(from_index), distance_callback(from_index, to_index))
+    transit_callback_index = routing.RegisterTransitCallback(cost_callback)
+    # Set the cost function for the arc costs.
+    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+#######################################################33
+    # vehicle_id = 0
+    # for i in data["vehicles_num"][0]:
+    #     # I is here 5 or 1
+    #     for j in range(i):
+    #         #  j is here 0,1,2,3,4,
+    #         print(j)
+
+
+    #         vehicle_id += 1
+    #         if i is 0:
+    #             routing.SetFixedCostOfVehicle(cost=1000, vehicle=vehicle_id)
+    #             routing.SetArcCostEvaluatorOfVehicle(evaluator_index=transit_callback_index, vehicle=vehicle_id)
+    #         else:
+    #             routing.SetFixedCostOfVehicle(cost=2000, vehicle=vehicle_id)
+    
+    # routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+#########################################################
+
+    max_dist_cap = []
+
+    #  data["vehicles_num"] = [
+    #     [5, 1],
+    #     [3, 1],
+    #     [5, 1]
+    # ]
+    
+    # TODO: its for one loop only
+    for j in range(data["vehicles_num"][0][0]):
+        # TODO: its for one loop only
+        max_dist_cap.append(data["vehicle_specs"][0][4])
+    # TODO: its for one loop only
+    for j in range(data["vehicles_num"][0][1]):
+        # TODO: its for one loop only
+        max_dist_cap.append(data["vehicle_specs"][1][4])
+    
+    print(max_dist_cap)
+    # Add Distance constraint.
+    routing.AddDimension(
+        transit_callback_index,
+        0,  # no slack
+        max_dist_cap,  # vehicle maximum travel distance
+        True,  # start cumul to zero
+        "Distance"
+    )
+
+    distance_dimension = routing.GetDimensionOrDie("Distance")
+    # this is supposed to make the cost of the distance to be 100 times more important than the cost of each step
+    # TODO: On verge, copilot suggested that it is for distance/fixed_cost 
+    # https://developers.google.com/optimization/reference/python/constraint_solver/pywrapcp#setglobalspancostcoefficient
+    distance_dimension.SetGlobalSpanCostCoefficient(100)
+
+
+
+
+
+
+
+if __name__ == "__main__":
+    main()
