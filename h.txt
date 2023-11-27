@@ -1,167 +1,70 @@
-Objective: 411
-0:
-0 -> 0
-Distance travelled: 0miles
+Objective: 0
+Route of Vehicle 0:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-1:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 1:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-2:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 2:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-3:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 3:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-4:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 4:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-5:
-0 -> 2 -> 3 -> 4 -> 7 -> 1 -> 5 -> 6 -> 0
-Distance travelled: 411miles
+Route of Vehicle 5:
+0 Time(15, 15) -> 7 Time(16, 17) -> 6 Time(17, 17) -> 5 Time(17, 17) -> 4 Time(17, 17) -> 3 Time(17, 17) -> 2 Time(17, 17) -> 1 Time(17, 17) -> 0 Time(17, 17)
+Time of the route: 17min
 
-For warehouse 1:
-Distance of the electric vehicle: 411miles
-Total distance travelled by all vehicles: 411miles
-Total cost of the all vehicle: $ 24660
-Objective: 580
-0:
-0 -> 0
-Distance travelled: 0miles
+Total time of all routes: 92min
+Objective: 0
+Route of Vehicle 0:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-1:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 1:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-2:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 2:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-3:
-0 -> 1 -> 2 -> 9 -> 7 -> 4 -> 8 -> 3 -> 6 -> 10 -> 5 -> 0
-Distance travelled: 580miles
+Route of Vehicle 3:
+0 Time(15, 15) -> 10 Time(15, 17) -> 9 Time(15, 17) -> 8 Time(15, 17) -> 7 Time(15, 17) -> 6 Time(15, 17) -> 5 Time(17, 17) -> 4 Time(17, 17) -> 3 Time(17, 17) -> 2 Time(17, 17) -> 1 Time(17, 17) -> 0 Time(17, 17)
+Time of the route: 17min
 
-For warehouse 2:
-Distance of the electric vehicle: 580miles
-Total distance travelled by all vehicles: 580miles
-Total cost of the all vehicle: $ 34800
-Objective: 476
-0:
-0 -> 0
-Distance travelled: 0miles
+Total time of all routes: 62min
+Objective: 0
+Route of Vehicle 0:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-1:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 1:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-2:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 2:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-3:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 3:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-4:
-0 -> 0
-Distance travelled: 0miles
+Route of Vehicle 4:
+0 Time(15, 15) -> 0 Time(15, 15)
+Time of the route: 15min
 
-5:
-0 -> 1 -> 5 -> 4 -> 3 -> 2 -> 0
-Distance travelled: 476miles
+Route of Vehicle 5:
+0 Time(15, 15) -> 5 Time(15, 17) -> 4 Time(15, 17) -> 3 Time(15, 17) -> 2 Time(17, 17) -> 1 Time(17, 17) -> 0 Time(17, 17)
+Time of the route: 17min
 
-For warehouse 3:
-Distance of the electric vehicle: 476miles
-Total distance travelled by all vehicles: 476miles
-Total cost of the all vehicle: $ 28560
-
-
-Total cost of entire day: $ 97020
-
-
-
-Objective: 38250
-0:
-0 -> 1 -> 7 -> 0
-Distance travelled: 375miles
-
-1:
-0 -> 0
-Distance travelled: 0miles
-
-2:
-0 -> 0
-Distance travelled: 0miles
-
-3:
-0 -> 0
-Distance travelled: 0miles
-
-4:
-0 -> 0
-Distance travelled: 0miles
-
-5:
-0 -> 2 -> 3 -> 4 -> 5 -> 6 -> 0
-Distance travelled: 375miles
-
-For warehouse 1:
-Distance of the electric vehicle: 375miles
-Total distance travelled by all vehicles: 750miles
-Total cost of the all vehicle: $ 60000
-Objective: 53018
-0:
-0 -> 6 -> 2 -> 10 -> 0
-Distance travelled: 508miles
-
-1:
-0 -> 9 -> 0
-Distance travelled: 500miles
-
-2:
-0 -> 7 -> 0
-Distance travelled: 500miles
-
-3:
-0 -> 5 -> 4 -> 8 -> 3 -> 1 -> 0
-Distance travelled: 510miles
-
-For warehouse 2:
-Distance of the electric vehicle: 510miles
-Total distance travelled by all vehicles: 2018miles
-Total cost of the all vehicle: $ 181400
-Objective: 45971
-0:
-0 -> 0
-Distance travelled: 0miles
-
-1:
-0 -> 2 -> 0
-Distance travelled: 420miles
-
-2:
-0 -> 0
-Distance travelled: 0miles
-
-3:
-0 -> 0
-Distance travelled: 0miles
-
-4:
-0 -> 0
-Distance travelled: 0miles
-
-5:
-0 -> 1 -> 5 -> 4 -> 3 -> 0
-Distance travelled: 451miles
-
-For warehouse 3:
-Distance of the electric vehicle: 451miles
-Total distance travelled by all vehicles: 871miles
-Total cost of the all vehicle: $ 69060
-
-
-Total cost of entire day: $ 324460
+Total time of all routes: 92min

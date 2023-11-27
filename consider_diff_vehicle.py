@@ -1,5 +1,15 @@
+# Assuming, order based on intensity
+# 1. No vehicle diiference, speed = avg
+# 2. No capacity issue
+# 3. No Multiple time window on same location
+# 4. Electric Vehicle not given edge
+# 3. No time ooptimization
+# 5. Assuming depo timing to be same all the time
+# 6. Assuming the depot timing are for just loading the trucks
+
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
+import numpy as np
 
 
 def create_data_model():
@@ -36,8 +46,6 @@ def create_data_model():
                             # fmt: on
     ]
 
-
-
     datas = [
         [1, 4],
         [1, 5],
@@ -63,17 +71,17 @@ def create_data_model():
         [3, 25],
     ]
 
-
-
-    
     mp_store_to_depot = {}
     mp_depot_to_store = {}
 
     data["depots"] = [
-        [4,5,6,7,8,9,10],
-        [11,12,13,14,15,16,17,18,19,20],
-        [21,22,23,24,25]
-    ]
+        [4, 5, 6, 7, 8, 9, 10],
+        [11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+        [21, 22, 23, 24, 25]
+    ]  # [[0, 3, 4, 5, 6, 7, 8, 9],
+    # [1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+    # [2, 20, 21, 22, 23, 24]]
+
     for i in range(data["no_of_depot"]):
         for j in range(len(data["depots"][i])):
             data["depots"][i][j] = data["depots"][i][j] - 1
@@ -82,15 +90,16 @@ def create_data_model():
     data["depots_dist_matrix"] = []
 
     for i in range(data["no_of_depot"]):
-        data["depots"][i].insert(0,i)
+        data["depots"][i].insert(0, i)
         rows = []
         for ii in range(len(data["depots"][i])):
             row = []
             for jj in range(len(data["depots"][i])):
-                row.append(data["distance_matrix"][data["depots"][i][ii]][data["depots"][i][jj]])
+                row.append(data["distance_matrix"]
+                           [data["depots"][i][ii]][data["depots"][i][jj]])
             rows.append(row)
         data["depots_dist_matrix"].append(rows)
-    
+
     for i in range(len(datas)):
         mp_store_to_depot[datas[i][1]] = datas[i][0]
         mp_depot_to_store[datas[i][0]] = datas[i][1]
@@ -161,8 +170,9 @@ def create_data_model():
         ('Demand48', 23,  6711, 573, '10:00', '12:00', '12:00', '19:00'),
         ('Demand49', 22,  6711, 574, '10:00', '12:00', '12:00', '19:00'),
         ('Demand50', 21,  6711, 575, '10:00', '12:00', '12:00', '19:00')]
-    
+
     return data
+
 
 def convert_time_to_numeric(time_str):
     # Convert 'HH:MM' format to numeric value
@@ -171,38 +181,23 @@ def convert_time_to_numeric(time_str):
 
 
 def print_solution(manager, routing, solution, data, depot_no):
-    print(f"Objective: {solution.ObjectiveValue()}")
-    total_route_distance = 0
-    max_route_distance = 0
-    total_trucks = data["vehicles_num"][depot_no][0] + data["vehicles_num"][depot_no][1]
-
-    idle_truck_count = 0
-    # TODO: Here I can easily get distance of electric vehicle and multiple with cost per mile
-    for vehicle_id in range(total_trucks):
+    print("Objective: {}".format(solution.ObjectiveValue()))
+    time_dimension = routing.GetDimensionOrDie("Time")
+    total_time = 0
+    for vehicle_id in range(data["vehicles_num"][depot_no][0] + data["vehicles_num"][depot_no][1]):
         index = routing.Start(vehicle_id)
-        output_for_vehiicle = f"{vehicle_id}:\n"
-        route_distance = 0
+        output_for_each_vehicle = f"Route of Vehicle {vehicle_id}:\n"
         while not routing.IsEnd(index):
-            output_for_vehiicle += f"{manager.IndexToNode(index)} -> "
-            prev_index = index
+            time_var = time_dimension.CumulVar(index)
+            output_for_each_vehicle += f"{manager.IndexToNode(index)} Time({solution.Min(time_var)}, {solution.Max(time_var)}) -> "
             index = solution.Value(routing.NextVar(index))
-            route_distance += routing.GetArcCostForVehicle(prev_index, index, vehicle_id)
-        
-        output_for_vehiicle += f"{manager.IndexToNode(index)}\n"
-        output_for_vehiicle += f"Distance travelled: {route_distance}miles\n"
-        if route_distance == 0:
-            idle_truck_count += 1
-        print(output_for_vehiicle)
-        total_route_distance += route_distance
-        max_route_distance = max(route_distance, max_route_distance)
+        time_var = time_dimension.CumulVar(index)
+        output_for_each_vehicle += f"{manager.IndexToNode(index)} Time({solution.Min(time_var)}, {solution.Max(time_var)})\n"
+        output_for_each_vehicle += f"Time of the route: {solution.Min(time_var)}min\n"
+        print(output_for_each_vehicle)
+        total_time += solution.Min(time_var)
+    print(f"Total time of all routes: {total_time}min")
 
-    total_cost = max_route_distance * data['vehicle_specs'][1][3] + (total_route_distance - max_route_distance) * data['vehicle_specs'][0][3] + 2000 + 1000*(total_trucks - idle_truck_count)
-    '''Giviing the maximum distance of the vehicle to electrical vehicle'''
-    print(f"For warehouse {depot_no + 1}:")
-    print(f"Distance of the electric vehicle: {max_route_distance}miles")
-    print(f"Total distance travelled by all vehicles: {total_route_distance}miles")
-    print(f"Total cost of the all vehicle: $ {max_route_distance * data['vehicle_specs'][1][3] + (total_route_distance - max_route_distance) * data['vehicle_specs'][0][3]}")
-    return total_cost
 
 def main():
     data = create_data_model()
@@ -211,39 +206,124 @@ def main():
     '''I will solve for all the warehouses one by one in below loop'''
     for i in range(data["no_of_depot"]):
         vehicle_list = data["vehicles_num"][i]  # [5,1]
-        distance_matrix = data["depots_dist_matrix"][i]  
-        
+        total_vehicle = sum(vehicle_list)  # 6
 
-
-        manager = pywrapcp.RoutingIndexManager(len(distance_matrix), vehicle_list[0] + vehicle_list[1], 0)
+        distance_matrix = data["depots_dist_matrix"][i]
+        matrix = np.array(distance_matrix)
+        # time_matrix = matrix/average_speed
+        manager = pywrapcp.RoutingIndexManager(
+            len(distance_matrix), total_vehicle, 0)
         routing = pywrapcp.RoutingModel(manager)
 
-        def distance_callback(from_index, to_index):
+    # data["vehicle_specs"] = [
+    #     # wgt   vol fixedCost   varCost   maxDist   speed
+    #     [61200, 2389, 1000, 100, 10000000, 40],
+
+        callback_indices = []
+
+        vehical_capacity = []
+
+        # for conventional only
+        for vehicle_idx in range(vehicle_list[0]):
+            vehical_capacity.append(data["vehicle_specs"][0][0])
+            def journey_cost_callback(from_index, to_index, i=vehicle_idx):
+                from_node = manager.IndexToNode(from_index)
+                to_node = manager.IndexToNode(to_index)
+                return data["vehicle_specs"][0][3] * distance_matrix[from_node][to_node]
+            callback_index = routing.RegisterTransitCallback(journey_cost_callback)
+            routing.SetArcCostEvaluatorOfVehicle(callback_index, vehicle_idx)
+            callback_indices.append(callback_index)
+
+        # for electric only
+        for vehicle_idx in range(vehicle_list[1]):
+            vehical_capacity.append(data["vehicle_specs"][1][0])
+            def journey_cost_callback(from_index, to_index, i=vehicle_idx):
+                from_node = manager.IndexToNode(from_index)
+                to_node = manager.IndexToNode(to_index)
+                return data["vehicle_specs"][1][3] * distance_matrix[from_node][to_node]
+            callback_index = routing.RegisterTransitCallback(journey_cost_callback)
+            routing.SetArcCostEvaluatorOfVehicle(
+                callback_index, vehicle_idx + vehicle_list[0])
+            callback_indices.append(callback_index)
+        
+
+        # print(callback_indices[:-1])
+        # add dimension for conventional vehicle
+        routing.AddDimensionWithVehicleTransits(
+            callback_indices,
+            0,
+            100000000000,
+            True,
+            'Distance')
+
+
+        def demand_callback(from_index):
+            """Returns the demand of the node."""
+            # Convert from routing variable Index to demands NodeIndex.
             from_node = manager.IndexToNode(from_index)
-            to_node = manager.IndexToNode(to_index)
-            return distance_matrix[from_node][to_node]
-   
-        transit_callback_index = routing.RegisterTransitCallback(distance_callback)
+            return data['demands'][from_node]
         
-        # NOTE: No cost variation assumed
-        routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-        # dimension_name = "Distance"
-
-        # # # NOTE: No limit on electric vehicle range
-        # routing.AddDimension(
-        #     transit_callback_index,
-        #     0,  # no slack
-        #     10000000,  # vehicle maximum travel distance
-        #     True,  # start cumul to zero
-        #     dimension_name)
+        demand_callback_index = routing.RegisterUnaryTransitCallback(
+            demand_callback)
         
-        # distance_dimension = routing.GetDimensionOrDie(dimension_name)
-        # # predominant factor in the objective function, so the program minimizes the length of the longest route
-        # distance_dimension.SetGlobalSpanCostCoefficient(100)
+        
+        routing.AddDimensionWithVehicleCapacity(
+            demand_callback_index,
+            0,  # null capacity slack
+            vehical_capacity,  # vehicle maximum capacities
+            True,  # start cumul to zero
+            'Capacity')
+
+        time_callback_index = []
+        max_time_for_vehicles = []
+        # for conventional only
+        for vehicle_index in range(vehicle_list[0]):
+            max_time_for_vehicles.append(100)
+            def journey_time_calllback(from_index, to_index, i=vehicle_idx):
+                from_node = manager.IndexToNode(from_index)
+                to_node = manager.IndexToNode(to_index)
+                return distance_matrix[from_node][to_node] / data["vehicle_specs"][0][5]
+
+            callback_index = routing.RegisterTransitCallback(journey_cost_callback)
+            #NOTE: change this in future as this is setting time as important factor to optimize
+            # Define cost of each arc.
+            routing.SetArcCostEvaluatorOfVehicle(callback_index, vehicle_index)
+            time_callback_index.append(callback_index)
 
 
-        # NOTE: No consideration of time window
+        # for electric only
+        for vehicle_index in range(vehicle_list[1]):
+            max_time_for_vehicles.append(int(data["vehicle_specs"][1][4]/data["vehicle_specs"][1][5])+1)
+            def journey_time_callback(from_index, to_index, i=vehicle_idx):
+                from_node = manager.IndexToNode(from_index)
+                to_node = manager.IndexToNode(to_index)
+                return distance_matrix[from_node][to_node] / data["vehicle_specs"][1][5]
+            callback_index = routing.RegisterTransitCallback(journey_time_callback)
+            #NOTE: change this in future as this is setting time as important factor to optimize
+            # Define cost of each arc.
+            # routing.SetArcCostEvaluatorOfVehicle(callback_index, vehicle_index + vehicle_list[0])
+            time_callback_index.append(callback_index)
+
+        print(time_callback_index)
+        print(max_time_for_vehicles)
+        routing.AddDimensionWithVehicleTransits(
+            time_callback_index, # transit callback index
+            0,  # allow waiting time    
+            300,  # maximum time per vehicle
+            True,  # Don't force start cumul to zero.
+            "Time"
+        )
+        time_dimension = routing.GetDimensionOrDie("Time")
+###########################################################################################################
+        
+
+    # data["depots"] = # [[0, 3, 4, 5, 6, 7, 8, 9],
+    # [1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+    # [2, 20, 21, 22, 23, 24]]
+        # print(data["depots"])
+
+
 
         search_parameters = pywrapcp.DefaultRoutingSearchParameters()
         search_parameters.first_solution_strategy = (
@@ -253,15 +333,9 @@ def main():
         solution = routing.SolveWithParameters(search_parameters)
 
         if solution:
-            total_cost += print_solution(manager, routing, solution, data, i)
-        else:
-            print("No solution found !")
-
-
-    print(f"\n\nTotal cost of entire day: $ {total_cost}")
-    
-        
+            # print_solution(manager, routing, solution, data, i)
+            pass
 
 
 if __name__ == "__main__":
-    main()  
+    main()

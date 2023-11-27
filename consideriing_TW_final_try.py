@@ -1,5 +1,15 @@
+# Assuming, order based on intensity
+# 1. No vehicle diiference, speed = avg
+# 2. No capacity issue
+# 3. No Multiple time window on same location
+# 4. Electric Vehicle not given edge
+# 3. No time ooptimization
+# 5. Assuming depo timing to be same all the time
+# 6. Assuming the depot timing are for just loading the trucks
+
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
+import numpy as np
 
 
 def create_data_model():
@@ -73,7 +83,10 @@ def create_data_model():
         [4,5,6,7,8,9,10],
         [11,12,13,14,15,16,17,18,19,20],
         [21,22,23,24,25]
-    ]
+    ]  # [[0, 3, 4, 5, 6, 7, 8, 9],
+    # [1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], 
+    # [2, 20, 21, 22, 23, 24]]
+    
     for i in range(data["no_of_depot"]):
         for j in range(len(data["depots"][i])):
             data["depots"][i][j] = data["depots"][i][j] - 1
@@ -169,26 +182,109 @@ def convert_time_to_numeric(time_str):
     hours, minutes = map(int, time_str.split(':'))
     return hours
 
+def print_solution(manager, routing, solution, data, depot_no):
+    print("Objective: {}".format(solution.ObjectiveValue()))
+    time_dimension = routing.GetDimensionOrDie("Time")
+    total_time = 0
+    for vehicle_id in range(data["vehicles_num"][depot_no][0] + data["vehicles_num"][depot_no][1]):
+        index = routing.Start(vehicle_id)
+        output_for_each_vehicle = f"Route of Vehicle {vehicle_id}:\n"
+        while not routing.IsEnd(index):
+            time_var = time_dimension.CumulVar(index)
+            output_for_each_vehicle += f"{manager.IndexToNode(index)} Time({solution.Min(time_var)}, {solution.Max(time_var)}) -> "
+            index = solution.Value(routing.NextVar(index))
+        time_var = time_dimension.CumulVar(index)
+        output_for_each_vehicle += f"{manager.IndexToNode(index)} Time({solution.Min(time_var)}, {solution.Max(time_var)})\n"
+        output_for_each_vehicle += f"Time of the route: {solution.Min(time_var)}min\n"
+        print(output_for_each_vehicle)
+        total_time += solution.Min(time_var)
+    print(f"Total time of all routes: {total_time}min")    
 
 def main():
     data = create_data_model()
     total_cost = 0
+    
+    average_speed = (data["vehicle_specs"][0][5] + data["vehicle_specs"][1][5])/2
+
     '''Assuming the one warehouse infrastructure as one graph and solving it'''
     '''I will solve for all the warehouses one by one in below loop'''
     for i in range(data["no_of_depot"]):
         vehicle_list = data["vehicles_num"][i]  # [5,1]
+        total_vehicle = sum(vehicle_list)  # 6
+
         distance_matrix = data["depots_dist_matrix"][i]  
-
-
-        manager = pywrapcp.RoutingIndexManager(len(distance_matrix), vehicle_list[0], 0)    
+        matrix = np.array(distance_matrix)
+        time_matrix = matrix/average_speed
+        manager = pywrapcp.RoutingIndexManager(len(time_matrix), total_vehicle, 0)    
         routing = pywrapcp.RoutingModel(manager)
 
-        def distance_callback(from_index, to_index):
+
+        def time_callback(from_index, to_index):
             from_node = manager.IndexToNode(from_index)
             to_node = manager.IndexToNode(to_index)
-            return distance_matrix[from_node][to_node]
+            return time_matrix[from_node][to_node]
+
+        transit_callback_index = routing.RegisterTransitCallback(time_callback)
+        
+        # NOTE: No cost variation assumed
+        routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+
+        # Add Time constraint.
+        routing.AddDimension(
+            transit_callback_index,
+            30,  # allow waiting time
+            30,  # maximum time per vehicle
+            False,  # Don't force start cumul to zero.
+            "Time")
+
+        time_dimension = routing.GetDimensionOrDie("Time")
+
+    # data["depots"] = # [[0, 3, 4, 5, 6, 7, 8, 9],
+    # [1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], 
+    # [2, 20, 21, 22, 23, 24]]
+        # print(data["depots"])
+
+        tracker = []
+        ####### Add time window constraints for each location
+        for location_idx, time_window in enumerate(data["demands"]):
+        # time_window == ('Demand7', 11,  6095, 483, '10:00', '12:00', '12:00', '19:00'),
+            if (time_window[1]-1) in data["depots"][i]:
+                store_index = manager.NodeToIndex(data["depots"][i].index(time_window[1]-1))
+                # # depot_index = manager.NodeToIndex(time_window[1])
+                # # time_dimension.CumulVar(depot_index).SetRange(convert_time_to_numeric(time_window[4]), convert_time_to_numeric(time_window[5]))
+                
+                # FIXME: Only one time interval taken
+                # if store_index not in tracker:
+                time_dimension.CumulVar(store_index).SetRange(convert_time_to_numeric(time_window[6]), convert_time_to_numeric(time_window[7]))
+                tracker.append(store_index)
+                
+                
+        # Add time window constraints for each vehicle start node.
+        for vehicle_id in range(total_vehicle):
+            index = routing.Start(vehicle_id)
+            time_dimension.CumulVar(index).SetRange(
+                convert_time_to_numeric(data["demands"][0][6]), convert_time_to_numeric(data["demands"][0][7])
+            )
+            #NOTE: We can set easily the upper max for electric vehicle using above function
+        
+        for vehicle__id in range(total_vehicle):
+            routing.AddVariableMinimizedByFinalizer(
+                time_dimension.CumulVar(routing.Start(vehicle__id)))
+            routing.AddVariableMinimizedByFinalizer(
+                time_dimension.CumulVar(routing.End(vehicle__id)))
+
+
+        search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+        search_parameters.first_solution_strategy = (
+            routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+        )
+
+        solution = routing.SolveWithParameters(search_parameters)
+
+        if solution:
+            print_solution(manager, routing, solution, data, i)
+            
 
 
 if __name__ == "__main__":
-    main()  
-
+    main()
