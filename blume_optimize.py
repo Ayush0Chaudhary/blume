@@ -167,10 +167,14 @@ def create_data_model():
 def convert_time_to_numeric(time_str):
     # Convert 'HH:MM' format to numeric value
     hours, minutes = map(int, time_str.split(':'))
-    return hours + minutes / 60
+    return hours
 
 # data[vehicle_num] 
 # conv    electric
+
+
+def solution_printer(data, manager, routing, solution):
+    print(f"Objective: {solution.ObjectiveValue()}")
 
 
 def main():
@@ -194,19 +198,19 @@ def main():
         return data["distance_matrix"][from_node][to_node]
     
     # TODO: To be change
-    def cost_function(vehicle, distance):
-        if vehicle in [0,1,2,3,4]:  # Vehicle 1 with $100 for 1 km
-            return distance * data["vehicle_specs"][0][3]
-        elif vehicle == 5:  # Vehicle 2 with $60 for 1 km
-            return distance * data['vehicle_specs'][1][3]
+    # def cost_function(vehicle, distance):
+    #     if vehicle in [0,1,2,3,4]:  # Vehicle 1 with $100 for 1 km
+    #         return distance * data["vehicle_specs"][0][3]
+    #     elif vehicle == 5:  # Vehicle 2 with $60 for 1 km
+    #         return distance * data['vehicle_specs'][1][3]
 
 # FIXME: Not sure about this, change in future to setting cost evaluator of individual vehicle
 #####################################################
     # registring the callback
     transit_callback_index = routing.RegisterTransitCallback(distance_callback)
     # TODO: To be changed
-    cost_callback = lambda from_index, to_index: cost_function(manager.vehicle(from_index), distance_callback(from_index, to_index))
-    transit_callback_index = routing.RegisterTransitCallback(cost_callback)
+    # cost_callback = lambda from_index, to_index: cost_function(manager.vehicle(from_index), distance_callback(from_index, to_index))
+    # transit_callback_index = routing.RegisterTransitCallback(cost_callback)
     # Set the cost function for the arc costs.
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 #######################################################33
@@ -220,7 +224,7 @@ def main():
 
     #         vehicle_id += 1
     #         if i is 0:
-    #             routing.SetFixedCostOfVehicle(cost=1000, vehicle=vehicle_id)
+    routing.SetFixedCostOfAllVehicles(1000)
     #             routing.SetArcCostEvaluatorOfVehicle(evaluator_index=transit_callback_index, vehicle=vehicle_id)
     #         else:
     #             routing.SetFixedCostOfVehicle(cost=2000, vehicle=vehicle_id)
@@ -245,7 +249,6 @@ def main():
         # TODO: its for one loop only
         max_dist_cap.append(data["vehicle_specs"][1][4])
     
-    print(max_dist_cap)
     # Add Distance constraint.
 
     # FIXME: Currently ignoring electric vehicle limits
@@ -261,7 +264,7 @@ def main():
     # this is supposed to make the cost of the distance to be 100 times more important than the cost of each step
     # TODO: On verge, copilot suggested that it is for distance/fixed_cost 
     # https://developers.google.com/optimization/reference/python/constraint_solver/pywrapcp#setglobalspancostcoefficient
-    distance_dimension.SetGlobalSpanCostCoefficient(100)
+    # distance_dimension.SetGlobalSpanCostCoefficient(100)
 
     time = "Time"
     # adding time dimension to make time window conatraint
@@ -281,28 +284,55 @@ def main():
     # Add time window constraints for each location except depot.
     '''Another assumption is that if shop have demand in the future, we will send delivery to them in early part of the day'''
     
+    # TODO: To be changed for loop
+    mylist = [0] * (len(data["depots"][0]))
 
-    for demand in data["demands"]:
+    # for demand in data["demands"]:
 
-    # data["depots"] = [
-    #     [4,5,6,7,8,9,10],
-    #     [11,12,13,14,15,16,17,18,19,20],
-    #     [21,22,23,24,25]
-    # ]
-    # ('Demand40', 16,  6711, 565, '10:00', '12:00', '12:00', '19:00'),
-        # TODO: To be changed for loop
-        if demand[1] in data["depots"][0]:
-            depot_index = manager.NodeToIndex(0)
-            store_index = manager.NodeToIndex(data["depots"].index(demand[1])+1)
-            depot_start = convert_time_to_numeric(demand[4])
-            depot_end = convert_time_to_numeric(demand[5])
-            store_start = convert_time_to_numeric(demand[6])
-            store_end = convert_time_to_numeric(demand[7])
-            time_dimension.CumulVar(depot_index).SetRange(depot_start, depot_end)
-            time_dimension.CumulVar(store_index).SetRange(store_start, store_end)
+    # # data["depots"] = [
+    # #     [4,5,6,7,8,9,10],
+    # #     [11,12,13,14,15,16,17,18,19,20],
+    # #     [21,22,23,24,25]
+    # # ]
+    # # ('Demand40', 16,  6711, 565, '10:00', '12:00', '12:00', '19:00'),
+    #     # TODO: To be changed for loop
+    #     if demand[1] in data["depots"][0]:
+    #         depot_index = manager.NodeToIndex(0)
+    #         store_index = manager.NodeToIndex(data["depots"][0].index(demand[1]))
+    #         # mylist[data["depots"][0].index(demand[1])] = 1
+    #         depot_start = convert_time_to_numeric(demand[4])
+    #         depot_end = convert_time_to_numeric(demand[5])
+    #         store_start = convert_time_to_numeric(demand[6])
+    #         store_end = convert_time_to_numeric(demand[7])
+
+    #         # FIXME: Not considering recuring demands
+    #         time_dimension.CumulVar(depot_index).SetRange(depot_start, depot_end)
+    #         time_dimension.CumulVar(store_index).SetRange(store_start, store_end)
+    #         # print(time_dimension.CumulVar(store_index).Value)
+            
+    
+    # If we minimize Distance travelled by all the trucks
+    # Instantiate route start and end times to produce feasible times.
+    for i in range(data["vehicles_num"][0][0] + data["vehicles_num"][0][1]):
+        routing.AddVariableMinimizedByFinalizer(
+            distance_dimension.CumulVar(routing.Start(i))
+        )
+        routing.AddVariableMinimizedByFinalizer(distance_dimension.CumulVar(routing.End(i)))
+
+    search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+    search_parameters.first_solution_strategy = (
+        # TODO: Decide the strategy
+        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    )
+    search_parameters.time_limit.FromSeconds(1)
+    solution = routing.SolveWithParameters(search_parameters=search_parameters)
 
 
-
+    if solution:
+        print("yaay")
+        solution_printer(data, manager, routing, solution)
+    else:
+        print("naahh!!")
 
 
 
