@@ -3,10 +3,12 @@ from functools import partial
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
+
 def convert_time_to_numeric(time_str):
     # Convert 'HH:MM' format to numeric value
     hours, minutes = map(int, time_str.split(':'))
     return hours
+
 
 def create_data_model():
     data = {}
@@ -67,6 +69,8 @@ def create_data_model():
         [61200, 2389, 2000, 60, 120, 45]
     ]
 
+    data['depot_timings'] = ['10:00', '12:00']
+
     data["demands"] = [
         ['Demand1',  4,  5497, 322, '10:00', '12:00', '15:00', '19:00'],
         ['Demand2',  5,  6072, 460, '10:00', '12:00', '16:00', '19:00'],
@@ -119,7 +123,6 @@ def create_data_model():
         ['Demand49', 22,  6711, 574, '10:00', '12:00', '12:00', '19:00'],
         ['Demand50', 21,  6711, 575, '10:00', '12:00', '12:00', '19:00']]
 
-
     '''Makiing demand iinto 0 based indexing'''
     for i in range(len(data["demands"])):
         data['demands'][i][1] -= 1
@@ -130,11 +133,11 @@ def create_data_model():
         # depots_store = [3, 4, 5, 6, 7, 8, 9]
         rows = []
         for demand in data["demands"]:
-            store_idx = demand[1] # because the number are reduced by one in depots_store
+            # because the number are reduced by one in depots_store
+            store_idx = demand[1]
             if store_idx in depots_store:
                 rows.append(demand)
         data["depot_demands"].append(rows)
-
 
     # As we know that the demand reoccur for same shop multiple times in a day
     # and we cannot assign multiple time window to single node
@@ -160,68 +163,92 @@ def create_data_model():
                            [data["depots"][i][ii]][data["depots"][i][jj]])
             rows.append(row)
         data["depots_distance_matrix"].append(rows)
-    
+
     # [[0, 3, 4, 5, 6, 7, 8, 9],
     # [1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
     # [2, 20, 21, 22, 23, 24]]
     data["time_windows"] = {}
     data["psuedo_nodes_data"] = {}
+
     '''Making the Time Windows'''
     for index, demands_of_a_depo in enumerate(data["depot_demands"]):
         # demand_of_a_depot contains all the demands of particular component
         freq = {}
         data["time_windows"][index] = {}
-        last = len(data["depots"][index]) -1
+        data["time_windows"][index][0] = [convert_time_to_numeric(data["depot_timings"][0]), convert_time_to_numeric(data["depot_timings"][1]), 0]
+        last = len(data["depots"][index])
         for demand in demands_of_a_depo:
             key_to_check = demand[1]
             row_num = data["depots"][index].index(key_to_check)
     #         # print(demand[1])
             if key_to_check in freq:
                 # matlab pehle hi ho chuka h iska kaam, second oirder from the same store
-                
+
                 # print(row_num, key_to_check)
-                data["time_windows"][index][last] = [convert_time_to_numeric(demand[6]), convert_time_to_numeric(demand[7])]
+                # print("last : " + str(last))
+                data["time_windows"][index][last] = [convert_time_to_numeric(
+                    demand[6]), convert_time_to_numeric(demand[7]), demand[2]]
                 data["psuedo_nodes_data"][last] = row_num
                 row_to_be_duplicated = data["depots_distance_matrix"][index][row_num]
-                data["depots_distance_matrix"][index].append(row_to_be_duplicated)
+                data["depots_distance_matrix"][index].append(
+                    row_to_be_duplicated)
                 last += 1
-                cnt =0
+                cnt = 0
                 for i in range(len(data["depots_distance_matrix"][index])):
                     if cnt < len(row_to_be_duplicated):
-                        data["depots_distance_matrix"][index][i].append(row_to_be_duplicated[cnt])
+                        data["depots_distance_matrix"][index][i].append(
+                            row_to_be_duplicated[cnt])
                     else:
                         data["depots_distance_matrix"][index][i].append(0)
             else:
-                data["time_windows"][index][row_num] = [convert_time_to_numeric(demand[6]), convert_time_to_numeric(demand[7])]
+                data["time_windows"][index][row_num] = [convert_time_to_numeric(
+                    demand[6]), convert_time_to_numeric(demand[7]), demand[2]]
                 freq[key_to_check] = 1
+                # print("row_num : " + str(row_num))
                 data["psuedo_nodes_data"][row_num] = row_num
     # print(data["depots_distance_matrix"])
             data["psuedo_nodes_data"][0] = 0
+        # print(freq)
+    
+
+
+    # print(data["psuedo_nodes_data"])
+    # print((data["time_windows"][0]))
+    # print(frequency_map)
+    # print(len(data["depots_distance_matrix"][0]))
+    # print(len(data["depots_distance_matrix"][1]))
+    # print(len(data["depots_distance_matrix"][2]))
+    # print(len(data["depots_distance_matrix"][2])+len(data["depots_distance_matrix"][1])+len(data["depots_distance_matrix"][0]))
+    print("\n\n\n\n")
     return data
 
-
-def print_solution(manager, routing, solution, data, depot_number):
+def print_solution(data, manager, routing, solution, iter):
     """Prints solution on console."""
-    print(f'Objective: {solution.ObjectiveValue()}')
-    max_route_time = 0
-    # no_of_electric_vehicles =
-    for vehicle_id in range(manager.GetNumberOfVehicles()):
+    total_distance = 0
+    time_dimension = routing.GetDimensionOrDie('Time')
+    capacity_dimension = routing.GetDimensionOrDie('Capacity')
+    print(data["vehicles_num"][iter][0] + data["vehicles_num"][iter][1])
+    for vehicle_id in range(data["vehicles_num"][iter][0] + data["vehicles_num"][iter][1]) :
         index = routing.Start(vehicle_id)
         plan_output = f'Route for vehicle {vehicle_id}:\n'
-        route_time = 0
+        route_distance = 0
+        route_load = 0
         while not routing.IsEnd(index):
-            plan_output += f'( {manager.IndexToNode(index)} ) --> '
+            node_index = manager.IndexToNode(index)
+            load_var = capacity_dimension.CumulVar(index)
+            route_load = solution.Value(load_var)
+            plan_output += f' {node_index} Load({route_load}) -> '
             previous_index = index
             index = solution.Value(routing.NextVar(index))
-            # plan_output += f'--{time}min--> '
-            # route_time += routing.GetArcCostForVehicle(previous_index, index, vehicle_id)
-        plan_output += f'{manager.IndexToNode(index)}\n'
-        plan_output += f'Time of the route: {route_time}min\n'
+            route_distance += routing.GetArcCostForVehicle(previous_index, index, vehicle_id)
+        node_index = manager.IndexToNode(index)
+        load_var = capacity_dimension.CumulVar(index)
+        route_load = solution.Value(load_var)
+        plan_output += f' {node_index} Load({route_load})\n'
+        plan_output += f'Distance of the route: {route_distance}m\n'
         print(plan_output)
-        max_route_time = max(route_time, max_route_time)
-    print(f'Maximum of the route time: {max_route_time}min')
-
-
+        total_distance += route_distance
+    print(f'Total distance of all routes: {total_distance}m')
 
 def main():
     '''We are solving the VRPTW problem just 3 times'''
@@ -230,90 +257,188 @@ def main():
     for iter in range(data["no_of_depot"]):
 
         distance_matrix = data["depots_distance_matrix"][iter]
-        time_windows = data["time_windows"][iter]   
+        time_windows = data["time_windows"][iter]
         depot_number = iter
         vehicle_list = data["vehicles_num"][iter]
         total_vehicles = sum(vehicle_list)
+        
+        '''Calculating all the demands of the depot'''
+        total_demands = 0
+        for demand in data["depot_demands"][iter]:
+            total_demands += demand[2]
+
 
         manager = pywrapcp.RoutingIndexManager(
             len(distance_matrix), total_vehicles, 0)
-        
+
         routing = pywrapcp.RoutingModel(manager)
 
-        # def distance_callback(from_index, to_index, speed):
-        #     """Returns the distance between the two nodes."""
-        #     # Convert from routing variable Index to distance matrix NodeIndex.
-        #     from_node = manager.IndexToNode(from_index)
-        #     to_node = manager.IndexToNode(to_index)
-        #     print(from_node - to_node, from_node, to_node)
-        #     return distance_matrix[from_node][to_node]
-        
+        ############### DISTANCE #####################
 
-        def time_callback(from_index, to_index, speed):
-            """Returns the time between the two nodes."""
-            # Convert from routing variable Index to time matrix NodeIndex.
+        def distance_callback(from_index, to_index, cost):
+            """Returns the distance between the two nodes."""
+            # Convert from routing variable Index to distance matrix NodeIndex.
             from_node = manager.IndexToNode(from_index)
             to_node = manager.IndexToNode(to_index)
-            return (distance_matrix[from_node][to_node]/speed)
-        
-        slow_vehicle_callback = partial(time_callback, speed=data["vehicle_specs"][0][5])
-        fast_vehicle_callback = partial(time_callback, speed=data["vehicle_specs"][1][5])
+            return distance_matrix[from_node][to_node]*cost
 
-        slow_vehicle_index = routing.RegisterTransitCallback(slow_vehicle_callback)
-        fast_vehicle_index = routing.RegisterTransitCallback(fast_vehicle_callback)
 
-        transits = []
+        expensive_vehicle_callback = partial(
+            distance_callback, cost=data["vehicle_specs"][0][3])
+        cheap_vehicle_callback = partial(
+            distance_callback, cost=data["vehicle_specs"][1][3])
+
+        expensive_index = routing.RegisterTransitCallback(
+            expensive_vehicle_callback)
+        cheap__index = routing.RegisterTransitCallback(cheap_vehicle_callback)
+
+        evaluaters = []
         limits = []
-        # conventional vehicle cost 
+        capacities = []
+
+        # conventional vehicle cost
         for i in range(0, vehicle_list[0]):
-            transits.append(slow_vehicle_index)
-            limits.append(int(data["vehicle_specs"][0][4]/data["vehicle_specs"][0][5])+1)
-            routing.SetFixedCostOfVehicle(2, i)
-            routing.SetArcCostEvaluatorOfVehicle(slow_vehicle_index, i)
+            evaluaters.append(expensive_index)
+            capacities.append(data["vehicle_specs"][0][0])
+            limits.append(data["vehicle_specs"][0][4])
+            routing.SetFixedCostOfVehicle(data["vehicle_specs"][0][2], i)
+            routing.SetArcCostEvaluatorOfVehicle(expensive_index, i)
 
         # for electric vehicle cost
         for i in range(vehicle_list[0], total_vehicles):
-            transits.append(fast_vehicle_index)
-            limits.append(int(data["vehicle_specs"][1][4]/data["vehicle_specs"][1][5])+1)
-            # routing.SetFixedCostOfVehicle(2, i)
-            routing.SetArcCostEvaluatorOfVehicle(fast_vehicle_index, i)
-        # Add Distance constraint.
-        dimension_name = 'Time'
+            evaluaters.append(cheap__index)
+            capacities.append(data["vehicle_specs"][1][0])
+            limits.append(data["vehicle_specs"][1][4])
+            routing.SetFixedCostOfVehicle(data["vehicle_specs"][1][2], i)
+            routing.SetArcCostEvaluatorOfVehicle(cheap__index, i)
+
+        dimension_name = "Distance"
         routing.AddDimensionWithVehicleTransitAndCapacity(
-            evaluator_indices=transits,
-            slack_max=30,
-            vehicle_capacities=limits,
-            fix_start_cumul_to_zero=False,
-            name=dimension_name
-        )
+            evaluator_indices=evaluaters,
+            slack_max=0,  # no slack
+            vehicle_capacities=limits,  # vehicle maximum travel distance
+            fix_start_cumul_to_zero=True,  # start cumul to zero
+            name=dimension_name)
 
-        time_dimension = routing.GetDimensionOrDie(dimension_name)  
-        time_dimension.SetGlobalSpanCostCoefficient(10000)
+        distance_dimension = routing.GetDimensionOrDie(dimension_name)
+        distance_dimension.SetGlobalSpanCostCoefficient(100)
+
+        ############### DISTANCE #####################
+
+        ############### CAPACITY #####################
+
+        def demand_callback(from_index):
+            """Returns the demand of the node."""
+            # Convert from routing variable Index to demands NodeIndex.
+            if from_index == 0:
+                return -total_demands
+            from_node = manager.IndexToNode(from_index)
+            return data["time_windows"][iter][from_node][2]
+
+
+        demand_callback_index = routing.RegisterUnaryTransitCallback(
+            demand_callback)
         
 
+        capacity = "Capacity"
+        routing.AddDimensionWithVehicleCapacity(
+            demand_callback_index,
+            slack_max=total_demands,  # Null Slack, but given for  the depot node
+            vehicle_capacities=capacities,
+            fix_start_cumul_to_zero=True,
+            name=capacity)
 
+        capacity_dimension = routing.GetDimensionOrDie(capacity)
+
+        # As we have set the slack to total_demands, we need to set the store node to 0 OR DO WE?
+        for i in range(len(distance_matrix)):
+            if i == 0:
+                capacity_dimension.SlackVar(i).SetRange(0, total_demands)
+                continue
+            capacity_dimension.SlackVar(i).SetRange(0, 0)
+
+        ############### CAPACITY #####################
+
+
+        ############### TIME #####################
+
+        def time_callback(from_index, to_index, speed):
+            from_node = manager.IndexToNode(from_index)
+            to_node = manager.IndexToNode(to_index)
+            return distance_matrix[from_node][to_node]/speed
         
 
+        # wgt   vol fixedCost varCost maxDist speed
+        # [61200, 2389, 1000, 100, 10000, 40],
+        # [61200, 2389, 2000, 60, 120, 45]
+        slow_vehicle_callback = partial(
+            time_callback, speed=data["vehicle_specs"][0][5])
+        
+        fast_vehicle_callback = partial(
+            time_callback, speed=data["vehicle_specs"][1][5])
+        
+        slow_index = routing.RegisterTransitCallback(
+            slow_vehicle_callback)
+        fast_index = routing.RegisterTransitCallback(
+            fast_vehicle_callback)
+        
+        time_indexes = []
+                # conventional vehicle cost
+        for i in range(0, vehicle_list[0]):
+            time_indexes.append(slow_index)
+
+        # for electric vehicle cost
+        for i in range(vehicle_list[0], total_vehicles):
+            time_indexes.append(fast_index)
+
+        time = "Time"
+        routing.AddDimensionWithVehicleTransits(
+            evaluator_indices=time_indexes,
+            slack_max=30,  # no slack
+            capacity=10000,  # vehicle maximum travel distance
+            fix_start_cumul_to_zero=False,  # start cumul to zero
+            name=time)
+        
+        time_dimension = routing.GetDimensionOrDie(time)
+        '''Adding the time windows'''
+        for i in range(0, len(distance_matrix)):
+            #  This is Depot timing, but the things is that the truck can return to the depot at any time
+            if i == 0:
+                time_dimension.CumulVar(i).SetRange( convert_time_to_numeric(data['depot_timings'][0]), convert_time_to_numeric(data['depot_timings'][1]))
+                continue
+            time_dimension.CumulVar(i).SetRange(
+                data["time_windows"][iter][i][0], data["time_windows"][iter][i][1])
 
 
-        search_params = pywrapcp.DefaultRoutingSearchParameters()
-        search_params.first_solution_strategy = (
+        for vehicle_id in range(total_vehicles):
+            index = routing.Start(vehicle_id)
+            time_dimension.CumulVar(index).SetRange(convert_time_to_numeric(data['depot_timings'][0]), convert_time_to_numeric(data['depot_timings'][1]))
+
+        for vehicle_id in range(total_vehicles):
+            routing.AddVariableMinimizedByFinalizer(
+                time_dimension.CumulVar(routing.Start(vehicle_id)))
+            routing.AddVariableMinimizedByFinalizer(
+                time_dimension.CumulVar(routing.End(vehicle_id)))
+            
+        ############### TIME #####################
+
+        # Setting first solution heuristic.
+        search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+        search_parameters.first_solution_strategy = (
             routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
-
-        #search_params.log_search = True
-        search_params.local_search_metaheuristic = (
-                routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
-        search_params.time_limit.seconds = 4
+        search_parameters.local_search_metaheuristic = (
+            routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
+        search_parameters.time_limit.FromSeconds(1)
 
         # Solve the problem.
-        solution = routing.SolveWithParameters(search_params)
-        print(manager.GetNumberOfVehicles())
-        # Print solution on console.
+        solution = routing.SolveWithParameters(search_parameters)
+
+
         if solution:
-            print_solution(manager, routing, solution, data, iter)
-
-
-
+            print(solution.ObjectiveValue())
+            print_solution(data, manager, routing, solution, iter)
+        else:
+            print(solution)
 
 if __name__ == "__main__":
-    main()  
+    main()
