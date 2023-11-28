@@ -245,10 +245,10 @@ def print_solution(data, manager, routing, solution, iter):
         load_var = capacity_dimension.CumulVar(index)
         route_load = solution.Value(load_var)
         plan_output += f' {node_index} Load({route_load})\n'
-        plan_output += f'Distance of the route: {route_distance}m\n'
+        plan_output += f'Cost of the route: {route_distance}m\n'
         print(plan_output)
         total_distance += route_distance
-    print(f'Total distance of all routes: {total_distance}m')
+    print(f'Total Cost of all routes: {total_distance}m')
 
 def main():
     '''We are solving the VRPTW problem just 3 times'''
