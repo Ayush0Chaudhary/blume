@@ -245,15 +245,16 @@ def print_solution(data, manager, routing, solution, iter):
         load_var = capacity_dimension.CumulVar(index)
         route_load = solution.Value(load_var)
         plan_output += f' {node_index} Load({route_load})\n'
-        plan_output += f'Cost of the route: {route_distance}m\n'
+        plan_output += f'Cost of the route: {route_distance} Ruppees\n'
         print(plan_output)
         total_distance += route_distance
-    print(f'Total Cost of all routes: {total_distance}m')
+    print(f'Total Cost of all routes: {total_distance} Ruppees')
+    return total_distance
 
-def main():
+def main(increase_trucks: bool = False, truck_type: int = 0, amount: int = 0, max_work_hours: int = 1000):
     '''We are solving the VRPTW problem just 3 times'''
     data = create_data_model()
-
+    operation_cost = 0
     for iter in range(data["no_of_depot"]):
 
         distance_matrix = data["depots_distance_matrix"][iter]
@@ -261,7 +262,10 @@ def main():
         depot_number = iter
         vehicle_list = data["vehicles_num"][iter]
         total_vehicles = sum(vehicle_list)
-        
+        if increase_trucks:
+            if truck_type == 0 or truck_type == 1:
+                vehicle_list[truck_type] += amount
+                total_vehicles += amount
         '''Calculating all the demands of the depot'''
         total_demands = 0
         for demand in data["depot_demands"][iter]:
@@ -432,13 +436,46 @@ def main():
 
         # Solve the problem.
         solution = routing.SolveWithParameters(search_parameters)
+        #setting time limit to 1 second
+
 
 
         if solution:
             print(solution.ObjectiveValue())
-            print_solution(data, manager, routing, solution, iter)
+            operation_cost += print_solution(data, manager, routing, solution, iter)
         else:
             print(solution)
+    print(f"Total Operation Cost : {operation_cost} Ruppees")
+
+    return operation_cost
+
+
+def check_benefit_of_increasing_conventional_trucks():
+    '''To check difference between adding the two types of trucks'''
+    type1 = main(increase_trucks=True, truck_type=0, amount=1)
+    type2 = main(increase_trucks=True, truck_type=1, amount=1)
+    print("Total benefit of using conventional trucks : " + str(type1 - type2) + " Ruppees")
+
+
+def check_benefit_of_increasing_electric_trucks():
+    '''To check difference between adding the two types of trucks'''
+    type1 = main(increase_trucks=True, truck_type=0, amount=1)
+    type2 = main(increase_trucks=True, truck_type=1, amount=1)
+    print("Total benefit of using conventional trucks : " + str(- type1 + type2) + " Ruppees")
+
+def check_for_driver_safe_limit():
+    '''To check the limit of the driver'''
+    no_over_worked_drivers = main(max_work_hours=8)
+    print("Cost when we dont force driver to work over hours : " + str(no_over_worked_drivers))
 
 if __name__ == "__main__":
     main()
+
+    '''To check what will happen on incresing the number of trucks'''
+    # main(increase_trucks=True, truck_type=0)
+    # main(increase_trucks=True, truck_type=1)
+
+    # check_benefit_of_increasing_conventional_trucks()
+    # check_benefit_of_increasing_electric_trucks()
+    # check_for_driver_safe_limit()
+
